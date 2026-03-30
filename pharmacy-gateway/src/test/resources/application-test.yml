@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: pharmacy-gateway-test
+  main:
+    web-application-type: reactive
+  cloud:
+    config:
+      enabled: false
+    discovery:
+      enabled: false
+    compatibility-verifier:
+      enabled: false
+
+server:
+  port: 0
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+management:
+  zipkin:
+    tracing:
+      endpoint: ""
+
+logging:
+  level:
+    root: WARN

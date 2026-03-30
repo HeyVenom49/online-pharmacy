@@ -1,0 +1,77 @@
+# Orders Service Configuration
+
+server:
+  port: ${ORDER_SERVICE_PORT:8083}
+
+spring:
+  application:
+    name: pharmacy-orders
+
+  datasource:
+    url: ${ORDER_DB_URL:jdbc:postgresql://localhost:5432/order_db}
+    username: ${ORDER_DB_USERNAME:postgres}
+    password: ${ORDER_DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: /
+
+  web:
+    flux:
+      timeout: 30000
+
+catalog:
+  service:
+    url: http://localhost:${CATALOG_SERVICE_PORT:8082}
+    timeout: 5000
+
+jwt:
+  secret: ${JWT_SECRET:pharmacySecureJWTSecretKey2024ForHS256Algorithm256Bits}
+
+services:
+  identity:
+    url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+  catalog:
+    url: ${CATALOG_SERVICE_URL:http://localhost:8082}
+  orders:
+    url: ${ORDERS_SERVICE_URL:http://localhost:8083}
+  admin:
+    url: ${ADMIN_SERVICE_URL:http://localhost:8084}
+
+eureka:
+  instance:
+    instance-id: ${spring.application.name}:${server.port}
+
+management:
+  health:
+    rabbit:
+      enabled: true
+    db:
+      enabled: true
+
+logging:
+  level:
+    com.pharmacy: DEBUG

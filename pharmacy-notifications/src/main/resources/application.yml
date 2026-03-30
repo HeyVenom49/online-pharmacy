@@ -1,0 +1,55 @@
+server:
+  port: ${NOTIFICATIONS_SERVICE_PORT:8085}
+
+spring:
+  application:
+    name: pharmacy-notifications
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+  cloud:
+    config:
+      enabled: true
+      fail-fast: false
+
+  config:
+    import: optional:file:./.env
+
+eureka:
+  instance:
+    hostname: ${HOSTNAME:localhost}
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    health-check-url: ${management.endpoints.web.base-path:}/health
+    status-page-url: ${management.endpoints.web.base-path:}/health
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+    health-check:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus, circuitbreakers
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+  health:
+    circuitbreakers:
+      enabled: true
+    mail:
+      enabled: false
+
+logging:
+  level:
+    com.pharmacy: DEBUG

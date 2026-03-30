@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: pharmacy-config-test
+  cloud:
+    config:
+      server:
+        native:
+          search-locations: classpath:/test-config-repo/
+        git:
+          enabled: false
+
+server:
+  port: 0
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+jasypt:
+  encryptor:
+    password: test-only
+
+management:
+  zipkin:
+    tracing:
+      endpoint: ""

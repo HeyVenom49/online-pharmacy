@@ -1,0 +1,83 @@
+# ==============================================
+# Environment files - NEVER commit these
+# ==============================================
+.env
+.env.local
+.env.*.local
+
+# Allow committing example env files
+!.env.example
+
+# ==============================================
+# Build outputs
+# ==============================================
+target/
+**/target/
+build/
+**/build/
+bin/
+*.class
+*.jar
+*.war
+
+# Maven
+.mvn/timing.properties
+
+# Gradle (in case any module adds it later)
+.gradle/
+**/.gradle/
+
+# ==============================================
+# IDE files
+# ==============================================
+.idea/
+*.iml
+*.swp
+*.swo
+.vscode/
+.project
+.classpath
+.factorypath
+.settings/
+
+# ==============================================
+# Logs
+# ==============================================
+*.log
+logs/
+
+# ==============================================
+# Uploaded files
+# ==============================================
+uploads/
+*.pdf
+*.jpg
+*.jpeg
+*.png
+
+# ==============================================
+# OS files
+# ==============================================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Patch/merge leftovers
+*.orig
+
+# ==============================================
+# Maven wrapper (optional - may want to commit)
+# ==============================================
+!.mvn/wrapper/maven-wrapper.jar
+
+# Keep wrapper scripts committed
+!mvnw
+!mvnw.cmd
+
+# ==============================================
+# Test outputs
+# ==============================================
+test-output/
+surefire-reports/
+junit-platform.properties

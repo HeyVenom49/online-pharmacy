@@ -1,0 +1,439 @@
+version: '3.8'
+
+services:
+  # ==================== INFRASTRUCTURE ====================
+  
+  postgres:
+    image: postgres:15-alpine
+    container_name: pharmacy-postgres
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: pharmacy
+      POSTGRES_PASSWORD: pharmacy123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pharmacy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: pharmacy-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: pharmacy-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Fake SMTP + web inbox for demos (no real delivery). Use with MAIL_HOST=mailpit, MAIL_PORT=1025, MAIL_SMTP_*=false in .env
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: pharmacy-mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - pharmacy-network
+
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: pharmacy-zipkin
+    ports:
+      - "9411:9411"
+    environment:
+      - ZIPKIN_STORAGE_MEMTRIMENABLED=false
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9411/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==================== CODE QUALITY ====================
+  
+  sonarqube:
+    image: sonarqube:community
+    container_name: pharmacy-sonarqube
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/api/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # ==================== MONITORING ====================
+  
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: pharmacy-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: pharmacy-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - pharmacy-network
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==================== SERVICE REGISTRY ====================
+  
+  eureka:
+    build:
+      context: .
+      dockerfile: pharmacy-eureka/Dockerfile
+      args:
+        JAR_PATH: pharmacy-eureka/target
+    container_name: pharmacy-eureka
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    networks:
+      - pharmacy-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ==================== CONFIG SERVER ====================
+  
+  config:
+    build:
+      context: .
+      dockerfile: pharmacy-config/Dockerfile
+      args:
+        JAR_PATH: pharmacy-config/target
+    container_name: pharmacy-config
+    ports:
+      - "8888:8888"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker,native
+      - EUREKA_HOSTNAME=eureka
+      - EUREKA_PORT=8761
+    volumes:
+      - ./pharmacy-config/config-repo:/config-repo
+    networks:
+      - pharmacy-network
+    depends_on:
+      eureka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8888/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ==================== MICROSERVICES ====================
+  
+  identity:
+    build:
+      context: .
+      dockerfile: pharmacy-identity/Dockerfile
+      args:
+        JAR_PATH: pharmacy-identity/target
+    container_name: pharmacy-identity
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config:8888
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/auth_db
+      - SPRING_DATASOURCE_USERNAME=pharmacy
+      - SPRING_DATASOURCE_PASSWORD=pharmacy123
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - EUREKA_SERVER_URL=http://eureka:8761/eureka/
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=guest
+      - RABBITMQ_PASSWORD=guest
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ZIPKIN_URL=http://zipkin:9411
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - MAIL_HOST=${MAIL_HOST}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_SMTP_AUTH=${MAIL_SMTP_AUTH:-true}
+      - MAIL_SMTP_STARTTLS=${MAIL_SMTP_STARTTLS:-true}
+    networks:
+      - pharmacy-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      eureka:
+        condition: service_healthy
+      config:
+        condition: service_healthy
+
+  notifications:
+    build:
+      context: .
+      dockerfile: pharmacy-notifications/Dockerfile
+      args:
+        JAR_PATH: pharmacy-notifications/target
+    container_name: pharmacy-notifications
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config:8888
+      - EUREKA_SERVER_URL=http://eureka:8761/eureka/
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=guest
+      - RABBITMQ_PASSWORD=guest
+      - ZIPKIN_URL=http://zipkin:9411
+      - MAIL_HOST=${MAIL_HOST}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_SMTP_AUTH=${MAIL_SMTP_AUTH:-true}
+      - MAIL_SMTP_STARTTLS=${MAIL_SMTP_STARTTLS:-true}
+    networks:
+      - pharmacy-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      eureka:
+        condition: service_healthy
+      config:
+        condition: service_healthy
+      identity:
+        condition: service_started
+
+  catalog:
+    build:
+      context: .
+      dockerfile: pharmacy-catalog/Dockerfile
+      args:
+        JAR_PATH: pharmacy-catalog/target
+    container_name: pharmacy-catalog
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config:8888
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/catalog_db
+      - SPRING_DATASOURCE_USERNAME=pharmacy
+      - SPRING_DATASOURCE_PASSWORD=pharmacy123
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - EUREKA_SERVER_URL=http://eureka:8761/eureka/
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=guest
+      - RABBITMQ_PASSWORD=guest
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ZIPKIN_URL=http://zipkin:9411
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+    networks:
+      - pharmacy-network
+    volumes:
+      - catalog_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      eureka:
+        condition: service_healthy
+      config:
+        condition: service_healthy
+
+  orders:
+    build:
+      context: .
+      dockerfile: pharmacy-orders/Dockerfile
+      args:
+        JAR_PATH: pharmacy-orders/target
+    container_name: pharmacy-orders
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config:8888
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/order_db
+      - SPRING_DATASOURCE_USERNAME=pharmacy
+      - SPRING_DATASOURCE_PASSWORD=pharmacy123
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - EUREKA_SERVER_URL=http://eureka:8761/eureka/
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=guest
+      - RABBITMQ_PASSWORD=guest
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ZIPKIN_URL=http://zipkin:9411
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+    networks:
+      - pharmacy-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      eureka:
+        condition: service_healthy
+      config:
+        condition: service_healthy
+
+  admin:
+    build:
+      context: .
+      dockerfile: pharmacy-admin/Dockerfile
+      args:
+        JAR_PATH: pharmacy-admin/target
+    container_name: pharmacy-admin
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config:8888
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/admin_db
+      - SPRING_DATASOURCE_USERNAME=pharmacy
+      - SPRING_DATASOURCE_PASSWORD=pharmacy123
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - EUREKA_SERVER_URL=http://eureka:8761/eureka/
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+    networks:
+      - pharmacy-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka:
+        condition: service_healthy
+      config:
+        condition: service_healthy
+
+  gateway:
+    build:
+      context: .
+      dockerfile: pharmacy-gateway/Dockerfile
+      args:
+        JAR_PATH: pharmacy-gateway/target
+    container_name: pharmacy-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config:8888
+      - EUREKA_SERVER_URL=http://eureka:8761/eureka/
+      - IDENTITY_SERVICE_URL=http://identity:8081
+      - CATALOG_SERVICE_URL=http://catalog:8082
+      - ORDERS_SERVICE_URL=http://orders:8083
+      - ADMIN_SERVICE_URL=http://admin:8084
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - RATE_LIMIT_AUTH=${RATE_LIMIT_AUTH}
+      - RATE_LIMIT_GENERAL=${RATE_LIMIT_GENERAL}
+      - RATE_LIMIT_BURST=${RATE_LIMIT_BURST}
+    networks:
+      - pharmacy-network
+    depends_on:
+      eureka:
+        condition: service_healthy
+      config:
+        condition: service_healthy
+
+# ==================== NETWORKS ====================
+networks:
+  pharmacy-network:
+    driver: bridge
+
+# ==================== VOLUMES ====================
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  catalog_uploads:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  prometheus_data:
+  grafana_data:

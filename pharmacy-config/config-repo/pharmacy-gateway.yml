@@ -1,0 +1,139 @@
+# Gateway Service Configuration
+
+server:
+  port: ${GATEWAY_PORT:8080}
+
+spring:
+  application:
+    name: pharmacy-gateway
+
+  cloud:
+    gateway:
+      routes:
+        # Same as /api/auth/login|signup after StripPrefix, but many clients call /auth/login without /api/
+        - id: identity-auth-direct
+          uri: ${IDENTITY_SERVICE_URL:http://identity:8081}
+          predicates:
+            - Path=/auth/login,/auth/signup
+
+        - id: identity-service
+          uri: ${IDENTITY_SERVICE_URL:http://identity:8081}
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=1
+
+        - id: notifications-service
+          uri: ${IDENTITY_SERVICE_URL:http://identity:8081}
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - StripPrefix=1
+
+        - id: catalog-service
+          uri: ${CATALOG_SERVICE_URL:http://catalog:8082}
+          predicates:
+            - Path=/api/catalog/**
+
+        - id: orders-service
+          uri: ${ORDERS_SERVICE_URL:http://orders:8083}
+          predicates:
+            - Path=/api/orders/**
+
+        - id: admin-service
+          uri: ${ADMIN_SERVICE_URL:http://admin:8084}
+          predicates:
+            - Path=/api/admin/**
+
+        - id: identity-api-docs
+          uri: ${IDENTITY_SERVICE_URL:http://identity:8081}
+          predicates:
+            - Path=/docs/identity/**
+          filters:
+            - RewritePath=/docs/identity/(?<segment>.*), /$\{segment}
+
+        - id: catalog-api-docs
+          uri: ${CATALOG_SERVICE_URL:http://catalog:8082}
+          predicates:
+            - Path=/docs/catalog/**
+          filters:
+            - RewritePath=/docs/catalog/(?<segment>.*), /$\{segment}
+
+        - id: orders-api-docs
+          uri: ${ORDERS_SERVICE_URL:http://orders:8083}
+          predicates:
+            - Path=/docs/orders/**
+          filters:
+            - RewritePath=/docs/orders/(?<segment>.*), /$\{segment}
+
+        - id: admin-api-docs
+          uri: ${ADMIN_SERVICE_URL:http://admin:8084}
+          predicates:
+            - Path=/docs/admin/**
+          filters:
+            - RewritePath=/docs/admin/(?<segment>.*), /$\{segment}
+
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8080}
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowedHeaders:
+              - Authorization
+              - Content-Type
+              - X-Requested-With
+            exposedHeaders:
+              - Authorization
+              - X-User-Id
+              - X-User-Email
+              - X-User-Role
+            allowCredentials: true
+            maxAge: 3600
+
+services:
+  identity:
+    url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+  catalog:
+    url: ${CATALOG_SERVICE_URL:http://localhost:8082}
+  orders:
+    url: ${ORDERS_SERVICE_URL:http://localhost:8083}
+  admin:
+    url: ${ADMIN_SERVICE_URL:http://localhost:8084}
+
+jwt:
+  secret: ${JWT_SECRET:pharmacySecureJWTSecretKey2024ForHS256Algorithm256Bits}
+  expiration: ${JWT_EXPIRATION:86400000}
+  public-paths:
+    - /api/auth/login
+    - /api/auth/signup
+    - /auth/login
+    - /auth/signup
+    - /swagger-ui
+    - /api-docs
+    - /swagger-ui.html
+    - /v3/api-docs
+    - /webjars
+    - /docs
+
+springdoc:
+  swagger-ui:
+    enabled: true
+    tagsSorter: alpha
+    operationsSorter: method
+    displayRequestDuration: true
+    tryItOutEnabled: true
+    persistAuthorization: true
+
+eureka:
+  instance:
+    instance-id: ${spring.application.name}:${server.port}
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG

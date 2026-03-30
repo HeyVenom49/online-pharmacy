@@ -1,0 +1,104 @@
+server:
+  port: ${AUTH_SERVICE_PORT:8081}
+
+spring:
+  application:
+    name: pharmacy-identity
+
+  cloud:
+    config:
+      enabled: true
+      fail-fast: false
+
+  config:
+    import: optional:file:./.env
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 5
+          min-idle: 1
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8080}
+
+services:
+  identity:
+    url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+  catalog:
+    url: ${CATALOG_SERVICE_URL:http://localhost:8082}
+  orders:
+    url: ${ORDERS_SERVICE_URL:http://localhost:8083}
+  admin:
+    url: ${ADMIN_SERVICE_URL:http://localhost:8084}
+
+jwt:
+  secret: ${JWT_SECRET:pharmacySecureJWTSecretKey2024ForHS256Algorithm256Bits}
+  expiration: 86400000
+  blacklist:
+    prefix: "jwt:blacklist:"
+    ttl: ${JWT_BLACKLIST_TTL:86400000}
+
+eureka:
+  instance:
+    hostname: ${HOSTNAME:localhost}
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    health-check-url: ${management.endpoints.web.base-path:}/health
+    status-page-url: ${management.endpoints.web.base-path:}/health
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+    health-check:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus, circuitbreakers
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+  health:
+    circuitbreakers:
+      enabled: true
+    redis:
+      enabled: true
+    db:
+      enabled: true
+    mail:
+      enabled: false
+  info:
+    env:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: Pharmacy Identity Service
+    version: 1.0.0
+
+logging:
+  level:
+    com.pharmacy: DEBUG
+    org.springframework.boot.actuator: INFO

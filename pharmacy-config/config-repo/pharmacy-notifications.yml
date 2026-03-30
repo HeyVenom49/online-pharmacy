@@ -1,0 +1,40 @@
+# Notifications service — email and future channels (SMS, push)
+
+server:
+  port: ${NOTIFICATIONS_SERVICE_PORT:8085}
+
+spring:
+  application:
+    name: pharmacy-notifications
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: /
+
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:true}
+
+eureka:
+  instance:
+    instance-id: ${spring.application.name}:${server.port}
+
+management:
+  health:
+    mail:
+      enabled: false
+
+logging:
+  level:
+    com.pharmacy.notifications: DEBUG

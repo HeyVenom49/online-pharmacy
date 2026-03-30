@@ -1,0 +1,121 @@
+server:
+  port: ${ORDER_SERVICE_PORT:8083}
+
+spring:
+  application:
+    name: pharmacy-orders
+
+  cloud:
+    config:
+      enabled: true
+      fail-fast: false
+
+  config:
+    import: optional:file:./.env
+
+  task:
+    scheduling:
+      pool:
+        size: 2
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+eureka:
+  instance:
+    hostname: ${HOSTNAME:localhost}
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    health-check-url: ${management.endpoints.web.base-path:}/health
+    status-page-url: ${management.endpoints.web.base-path:}/health
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+    health-check:
+      enabled: true
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      catalogService:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 5s
+        failure-rate-threshold: 50
+        event-consumer-buffer-size: 10
+      ordersService:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 5s
+        failure-rate-threshold: 50
+        event-consumer-buffer-size: 10
+  retry:
+    instances:
+      catalogService:
+        max-attempts: 3
+        wait-duration: 500ms
+        retry-exceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+      ordersService:
+        max-attempts: 3
+        wait-duration: 500ms
+        retry-exceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+  timelimiter:
+    instances:
+      catalogService:
+        timeout-duration: 3s
+      ordersService:
+        timeout-duration: 3s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus, circuitbreakers
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+  health:
+    circuitbreakers:
+      enabled: true
+    db:
+      enabled: true
+  info:
+    env:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: Pharmacy Orders Service
+    version: 1.0.0
+
+logging:
+  level:
+    com.pharmacy: DEBUG
+    io.github.resilience4j: DEBUG
+
+outbox:
+  poll-interval: 1000
+  max-retries: 5
+  batch-size: 100
+  cleanup-days: 30

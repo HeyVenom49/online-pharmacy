@@ -1,0 +1,4 @@
+# Minimal config files for Config Server smoke tests
+spring:
+  application:
+    name: placeholder

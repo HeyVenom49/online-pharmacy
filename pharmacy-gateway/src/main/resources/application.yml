@@ -1,0 +1,109 @@
+server:
+  port: ${GATEWAY_PORT:8080}
+
+spring:
+  application:
+    name: pharmacy-gateway
+
+  cloud:
+    config:
+      enabled: true
+      fail-fast: false
+
+  config:
+    import: optional:file:./.env
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8080}
+
+eureka:
+  instance:
+    hostname: ${HOSTNAME:localhost}
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+
+services:
+  identity:
+    url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+  catalog:
+    url: ${CATALOG_SERVICE_URL:http://localhost:8082}
+  orders:
+    url: ${ORDERS_SERVICE_URL:http://localhost:8083}
+  admin:
+    url: ${ADMIN_SERVICE_URL:http://localhost:8084}
+
+jwt:
+  secret: ${JWT_SECRET:pharmacySecureJWTSecretKey2024ForHS256Algorithm256Bits}
+  expiration: ${JWT_EXPIRATION:86400000}
+  public-paths:
+    - /api/auth/login
+    - /api/auth/signup
+    - /auth/login
+    - /auth/signup
+    - /swagger-ui
+    - /api-docs
+    - /swagger-ui.html
+    - /v3/api-docs
+    - /docs
+    - /actuator
+    - /webjars
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+    resolveSchemaProperties: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operationsSorter: method
+    tagsSorter: alpha
+    displayRequestDuration: true
+    tryItOutEnabled: true
+    supportedSubmitMethods:
+      - get
+      - post
+      - put
+      - patch
+      - delete
+    persistAuthorization: true
+    configUrl: /v3/api-docs/swagger-config
+    use-root-path: true
+    oauth:
+      useBasicAuthenticationWithAccessCodeGrant: false
+      showDebugCredentials: true
+    withCredentials: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+    env:
+      enabled: false
+    heapdump:
+      enabled: false
+    threaddump:
+      enabled: false
+    loggers:
+      enabled: false
+
+rate-limit:
+  auth:
+    requests-per-minute: ${RATE_LIMIT_AUTH:5}
+  general:
+    requests-per-minute: ${RATE_LIMIT_GENERAL:100}
+  burst-capacity: ${RATE_LIMIT_BURST:20}
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    com.pharmacy: DEBUG

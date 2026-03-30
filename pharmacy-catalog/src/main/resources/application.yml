@@ -1,0 +1,76 @@
+server:
+  port: ${CATALOG_SERVICE_PORT:8082}
+
+spring:
+  application:
+    name: pharmacy-catalog
+
+  cloud:
+    config:
+      enabled: true
+      fail-fast: false
+
+  config:
+    import: optional:file:./.env
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:redis}
+    timeout: 2000ms
+
+eureka:
+  instance:
+    hostname: ${HOSTNAME:localhost}
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    health-check-url: ${management.endpoints.web.base-path:}/health
+    status-page-url: ${management.endpoints.web.base-path:}/health
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+    health-check:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus, circuitbreakers
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+  health:
+    circuitbreakers:
+      enabled: true
+    db:
+      enabled: true
+    redis:
+      enabled: false
+  info:
+    env:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: Pharmacy Catalog Service
+    version: 1.0.0
+
+logging:
+  level:
+    com.pharmacy: DEBUG
+    org.springframework.boot.actuator: INFO
