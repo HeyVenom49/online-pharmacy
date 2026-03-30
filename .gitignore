@@ -81,3 +81,9 @@ Desktop.ini
 test-output/
 surefire-reports/
 junit-platform.properties
+
+# ==============================================
+# SonarQube / Sonar scanner outputs
+# ==============================================
+.scannerwork/
+**/.scannerwork/

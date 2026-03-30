@@ -171,6 +171,37 @@ Run selected modules (example):
 mvn -pl pharmacy-common,pharmacy-identity,pharmacy-notifications -am test
 ```
 
+## SonarQube (lint / static analysis)
+
+This repo includes a SonarQube container in `docker-compose.yml`.
+
+### 1) Start SonarQube
+
+```bash
+docker compose up -d sonarqube
+```
+
+Open SonarQube:
+- `http://localhost:9000`
+
+### 2) Create a token (UI)
+In SonarQube UI → your profile → **Security** → generate a token.
+
+### 3) Run analysis from the repo root
+
+```bash
+mvn -DskipTests sonar:sonar \
+  -Dsonar.host.url=http://localhost:9000 \
+  -Dsonar.login=<YOUR_SONAR_TOKEN>
+```
+
+If you also want coverage in Sonar, run tests first (JaCoCo reports are generated under each module):
+
+```bash
+mvn test
+mvn sonar:sonar -Dsonar.host.url=http://localhost:9000 -Dsonar.login=<YOUR_SONAR_TOKEN>
+```
+
 ## Scripts
 - `scripts/test-all-endpoints.sh`: gateway smoke checks
 
